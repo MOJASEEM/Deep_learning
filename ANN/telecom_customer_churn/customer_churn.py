@@ -8,8 +8,11 @@ from tensorflow import keras
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sn
+from imblearn.over_sampling import SMOTE
+from collections import Counter
+from sklearn.impute import SimpleImputer
 
-df = pd.read_csv("D:/Data Science/customer_churn_prediction/telecom_customer_churn/Telco-Customer-Churn.csv")
+df = pd.read_csv("D:/Data Science/customer_churn_prediction/ANN/telecom_customer_churn/Telco-Customer-Churn.csv")
 
 print(df.sample(5))
 df.drop('customerID',axis='columns',inplace=True)
@@ -80,33 +83,58 @@ y = df2['Churn']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
 print(X_train.shape)
 print(len(X_train.columns))
-model = keras.Sequential([
-    keras.layers.Dense(26, input_shape=(26,), activation='relu'),
-    keras.layers.Dense(15, activation='relu'),
-    keras.layers.Dense(1, activation='sigmoid')
-])
+def ANN(X_train, y_train, X_test, y_test, loss, weights):
+    model = keras.Sequential([
+        keras.layers.Dense(26, input_shape=(26,), activation='relu'),
+        keras.layers.Dense(15, activation='relu'),
+        keras.layers.Dense(1, activation='sigmoid')
+    ])
 
-# opt = keras.optimizers.Adam(learning_rate=0.01)
+    # opt = keras.optimizers.Adam(learning_rate=0.01)
 
-model.compile(optimizer='adam',
-              loss='binary_crossentropy',
-              metrics=['accuracy'])
+    model.compile(optimizer='adam',
+                loss='binary_crossentropy',
+                metrics=['accuracy'])
 
-model.fit(X_train, y_train, epochs=100)
-print("\n# Evaluate on test data",model.evaluate(X_test, y_test))
-yp = model.predict(X_test)
-y_pred = []
-for element in yp:
-    if element > 0.5:
-        y_pred.append(1)
-    else:
-        y_pred.append(0)
-print(y_pred[:10])
-print(classification_report(y_test,y_pred))
-cm = tf.math.confusion_matrix(labels=y_test,predictions=y_pred)
+    model.fit(X_train, y_train, epochs=100)
+    print("\n# Evaluate on test data",model.evaluate(X_test, y_test))
+    yp = model.predict(X_test)
+    y_pred = []
+    for element in yp:
+        if element > 0.5:
+            y_pred.append(1)
+        else:
+            y_pred.append(0)
+    print(model.evaluate(X_test, y_test))
+    
+    y_preds = model.predict(X_test)
+    y_preds = np.round(y_preds)
+    
+    print("Classification Report: \n", classification_report(y_test, y_preds))
 
+    print(y_pred[:10])
+    return y_pred
+
+y_preds = ANN(X_train, y_train, X_test, y_test, 'binary_crossentropy', -1)
+print(classification_report(y_test,y_preds))
+cm = tf.math.confusion_matrix(labels=y_test,predictions=y_preds)
 plt.figure(figsize = (10,7))
 sn.heatmap(cm, annot=True, fmt='d')
 plt.xlabel('Predicted')
 plt.ylabel('Truth')
 plt.show()
+imputer = SimpleImputer(strategy='mean')  # Or 'median' or 'most_frequent'
+X_imputed = imputer.fit_transform(X)
+smote = SMOTE(sampling_strategy='minority')
+X_sm, y_sm = smote.fit_resample(X_imputed, y)
+y_sm.value_counts()
+X_train, X_test, y_train, y_test = train_test_split(X_sm, y_sm, test_size=0.2, random_state=15, stratify=y_sm)
+y_preds = ANN(X_train, y_train, X_test, y_test, 'binary_crossentropy', -1)
+print(classification_report(y_test,y_preds))
+cm = tf.math.confusion_matrix(labels=y_test,predictions=y_preds)
+plt.figure(figsize = (10,7))
+sn.heatmap(cm, annot=True, fmt='d')
+plt.xlabel('Predicted')
+plt.ylabel('Truth')
+plt.show()
+
